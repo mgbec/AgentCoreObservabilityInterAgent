@@ -340,21 +340,21 @@ TEST 4: Multi-Agent Query (Both Specialist AND Fact Checker) ✅
 
 ### Modify Agent Code
 
-1. **Edit Agent Files**
-   ```bash
-   # Orchestrator Agent
-   vim agent-orchestrator-code/agent.py
-   vim agent-orchestrator-code/requirements.txt
+Agent source code lives in three directories:
 
-   # Specialist Agent
-   vim agent-specialist-code/agent.py
-   vim agent-specialist-code/requirements.txt
-   ```
+```
+agent-orchestrator-code/agent.py   # Routing logic, A2A tool definitions
+agent-specialist-code/agent.py     # Specialist analysis logic
+agent-factchecker-code/agent.py    # Claim verification logic
+```
 
-2. **Redeploy**
-   ```bash
-   terraform apply  # Automatically detects changes and rebuilds
-   ```
+Each agent uses the Strands SDK with a `BedrockModel`. To customize:
+
+1. Edit the agent's `agent.py` (update the system prompt, add tools, change logic)
+2. Add any new Python dependencies to the agent's `requirements.txt`
+3. Run `terraform apply` — Terraform detects the source code change via MD5 hash and triggers a rebuild automatically
+
+The model is configured via the `bedrock_model_id` variable in `terraform.tfvars` and passed to all agents as the `BEDROCK_MODEL_ID` environment variable.
 
 ### Add More Agents
 
