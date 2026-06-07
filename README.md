@@ -133,6 +133,10 @@ This Terraform configuration creates:
 
 4. **Docker** (for local testing, optional)
 
+5. **Tavily API Key** (optional, enables web search for Specialist and Fact Checker agents)
+   - Get a free key at [app.tavily.com](https://app.tavily.com) (1,000 searches/month, no credit card)
+   - Set in `terraform.tfvars` as `tavily_api_key`
+
 ### AWS Account Requirements
 
 - AWS Account with appropriate permissions
@@ -212,25 +216,24 @@ terraform output specialist_runtime_arn
 The deployment follows a strict sequence to ensure proper dependencies:
 
 ```
-1. S3 Buckets Creation (orchestrator & specialist)
-2. ECR Repositories Creation (orchestrator & specialist)
-3. IAM Roles Creation (with A2A permissions)
-4. CodeBuild Projects Creation (orchestrator & specialist)
-5. Agent2 Docker Build → Agent2 Runtime Creation
-6. Agent1 Docker Build → Agent1 Runtime Creation (depends on Agent2)
+1. S3 Buckets Creation (orchestrator, specialist, factchecker)
+2. ECR Repositories Creation (orchestrator, specialist, factchecker)
+3. IAM Roles Creation (with A2A permissions for orchestrator)
+4. CodeBuild Projects Creation (all three agents)
+5. Specialist & Fact Checker Docker Builds (independent, can run in parallel)
+6. Orchestrator Docker Build → Orchestrator Runtime Creation (depends on both)
 ```
 
 **Critical Dependencies:**
-- Agent1 runtime depends on Agent2 runtime being created first
-- Agent1 build depends on Agent2 build completing successfully
-- Agent1 receives `AGENT2_ARN` as an environment variable
+- Orchestrator runtime depends on both Specialist and Fact Checker being created first
+- Orchestrator receives `SPECIALIST_ARN` and `FACTCHECKER_ARN` as environment variables
 
 ### Build Triggers
 
 The infrastructure automatically triggers Docker image builds:
 - When source code changes (MD5 hash detection)
 - When infrastructure changes require rebuild
-- Sequential: Agent2 builds first, then Agent1
+- Specialist and Fact Checker build independently; Orchestrator builds last
 
 ## Authentication Model
 
@@ -238,7 +241,7 @@ This pattern uses **IAM-based authentication with workload identity tokens**:
 
 - **Service Principal**: Agents assume IAM roles via `bedrock-agentcore.amazonaws.com`
 - **Workload Identity**: Agents obtain access tokens for secure operations
-- **A2A Authorization**: Agent1 has `InvokeAgentRuntime` permission for Agent2
+- **A2A Authorization**: Orchestrator has `InvokeAgentRuntime` permission scoped to Specialist and Fact Checker ARNs only
 - **API Access**: Direct AWS API invocation using IAM credentials
 
 **Note**: This is a backend infrastructure pattern with no user authentication layer. For user-facing applications, you would add Cognito or API Gateway authorizers separately.
@@ -373,27 +376,39 @@ This shows the full trace hierarchy — Orchestrator calling Specialist and/or F
 
 ### Specialist Agent
 
+**Tools:**
+- `web_search`: Searches the web via Tavily API for current information
+  - Parameters: `query` (string), `max_results` (int, default 5)
+  - Returns: Search results with answer, titles, URLs, and content
+
 **Capabilities:**
+- Real-time web research for current information
 - Domain-specific data analysis
 - Detailed information processing
-- Expert-level responses
+- Expert-level responses with source citations
 
 **Use Cases:**
-- Data analysis and transformation
-- Domain-specific processing
-- Comprehensive explanations
+- Researching unfamiliar topics (e.g., "What is OpenClaw?")
+- Getting current information beyond LLM training data
+- Comprehensive explanations with sources
 
 ### Fact Checker Agent
 
+**Tools:**
+- `web_search`: Searches the web to find evidence for or against claims
+  - Parameters: `query` (string), `max_results` (int, default 5)
+  - Returns: Search results for verification
+
 **Capabilities:**
-- Claim evaluation and verification
+- Claim evaluation with web-sourced evidence
 - Structured verdict responses (TRUE/FALSE/PARTIALLY TRUE/UNVERIFIABLE)
 - Confidence assessment (HIGH/MEDIUM/LOW)
+- Source-backed reasoning
 
 **Use Cases:**
-- Verifying factual claims
+- Verifying factual claims against current sources
 - Assessing accuracy of statements
-- Providing evidence-based verdicts
+- Providing evidence-based verdicts with citations
 
 ## Customization
 
@@ -455,6 +470,8 @@ multi-agent-runtime/
 ├── scripts/
 │   ├── build-image.ps1          # PowerShell build script (Windows)
 │   └── build-image.sh           # Bash build script (Linux/macOS)
+├── ask.py                       # Single-question test script
+├── test_multi_agent.py          # Full test suite (4 scenarios)
 ├── orchestrator.tf              # Orchestrator runtime configuration
 ├── specialist.tf                # Specialist runtime configuration
 ├── factchecker.tf               # Fact Checker runtime configuration
@@ -473,7 +490,6 @@ multi-agent-runtime/
 ├── backend.tf.example           # Example backend configuration
 ├── deploy.sh                    # Deployment automation script
 ├── destroy.sh                   # Cleanup automation script
-├── test_multi_agent.py          # Infrastructure-agnostic test script
 └── README.md                    # This file
 ```
 
