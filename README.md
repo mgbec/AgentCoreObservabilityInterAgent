@@ -42,7 +42,7 @@ This makes it ideal for:
 - Building complex multi-agent workflows
 - Implementing agent specialization patterns
 - Creating scalable agent orchestration systems
-- Learning A2A communication protocols
+- Learning agent to agent communication observability
 
 ## Architecture
 
@@ -75,7 +75,7 @@ This makes it ideal for:
 
 **Formal A2A protocol (not used here):** Requires JSON-RPC on port 9000, agent card discovery, OAuth 2.0/SigV4 auth, and the full task lifecycle. This is designed for cross-organization interoperability where agents from different vendors need a standard contract.
 
-**Why we chose the direct approach:**
+**Why I chose the direct approach:**
 - Simpler implementation (one boto3 call vs. full protocol stack)
 - Native IAM security without additional OAuth configuration
 - Built-in observability via CloudWatch and ADOT
