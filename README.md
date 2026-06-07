@@ -28,10 +28,10 @@ This Terraform module deploys a multi-agent system using Amazon Bedrock AgentCor
 
 ## Overview
 
-This pattern demonstrates deploying a multi-agent system with three coordinating agents that communicate via the Agent-to-Agent (A2A) protocol. The Orchestrator routes requests to either the Specialist (for detailed analysis) or the Fact Checker (for claim verification), enabling modular and scalable agent architectures with full distributed tracing.
+This pattern demonstrates deploying a multi-agent system with three coordinating agents. The Orchestrator routes requests to either the Specialist (for detailed analysis) or the Fact Checker (for claim verification), enabling modular and scalable agent architectures with full distributed tracing.
 
 **Key Features:**
-- Three-agent architecture with multi-hop A2A communication
+- Three-agent architecture with multi-hop interagent communication
 - ADOT (AWS Distro for OpenTelemetry) instrumentation for full distributed tracing
 - Automated Docker image building via CodeBuild
 - S3-based source code management with change detection
@@ -67,7 +67,7 @@ This makes it ideal for:
 - Returns structured verdicts (TRUE/FALSE/PARTIALLY TRUE) with confidence levels
 - Invoked by Orchestrator when factual accuracy needs verification
 
-### Agent-to-Agent (A2A) Communication
+### Inter-Agent Communication, but not formal A2A Protocol
 
 > **Note:** This project uses direct `InvokeAgentRuntime` API calls between agents — not the formal [A2A protocol](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-a2a.html) (Google's Agent-to-Agent spec with JSON-RPC, agent cards, and OAuth). See below for the distinction.
 
@@ -76,7 +76,7 @@ This makes it ideal for:
 **Formal A2A protocol (not used here):** Requires JSON-RPC on port 9000, agent card discovery, OAuth 2.0/SigV4 auth, and the full task lifecycle. This is designed for cross-organization interoperability where agents from different vendors need a standard contract.
 
 **Why I chose the direct approach:**
-- Simpler implementation (one boto3 call vs. full protocol stack)
+- Simpler implementation (one boto3 call vs. full protocol stack) and issues deploying agents that worked with official A2A
 - Native IAM security without additional OAuth configuration
 - Built-in observability via CloudWatch and ADOT
 - Lower latency (no extra protocol negotiation hop)
@@ -166,6 +166,7 @@ Edit `terraform.tfvars` with your preferred values:
 - `aws_region`: AWS region for deployment
 - `network_mode`: PUBLIC or PRIVATE networking
 - `bedrock_model_id`: Bedrock model inference profile ID
+-  Tavily API key if used
 
 ### 2. Initialize Terraform
 
@@ -504,7 +505,7 @@ All agents are auto-instrumented with OpenTelemetry. Traces flow to the `aws/spa
 - **Agent spans**: Full invocation lifecycle per agent
 - **LLM call spans**: Model ID, token usage (input/output), time-to-first-token
 - **Tool use spans**: Which tools were called, duration, success/failure
-- **A2A spans**: Cross-agent invocations with target ARN, latency, HTTP status
+- **Agent to agent spans**: Cross-agent invocations with target ARN, latency, HTTP status
 - **Session correlation**: All spans in a single request share a trace ID
 
 **View traces in CloudWatch Logs Insights** (log group: `aws/spans`):
@@ -602,9 +603,9 @@ For current pricing information, please refer to:
 
 ### Common Issues
 
-**Issue**: Agent1 fails to invoke Agent2
-- **Solution**: Verify AGENT2_ARN environment variable is set
-- **Check**: IAM permissions include InvokeAgentRuntime
+**Issue**: No aws/span data in CloudWatch
+- **Solution**: turn on tracing toggle in AgentCore Runtime (turns off if you recreate runtimes)
+- **Check**: Check tracing toggle for all your agent runtimes, even if it was on before
 
 **Issue**: Build fails
 - **Solution**: Check CodeBuild logs in CloudWatch
@@ -613,6 +614,10 @@ For current pricing information, please refer to:
 **Issue**: Runtime not created
 - **Solution**: Verify ECR image exists and is tagged correctly
 - **Check**: Review Terraform state for errors
+
+**Issue**: Runtime not updating with your changes
+- **Solution**: Use Terraform taint to force complete rebuild
+- **Check**: Agent runtimes are using old logic, ECR images, old environmental variables
 
 ### Debug Commands
 
