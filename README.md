@@ -473,6 +473,8 @@ multi-agent-runtime/
 │   └── build-image.sh           # Bash build script (Linux/macOS)
 ├── ask.py                       # Single-question test script
 ├── test_multi_agent.py          # Full test suite (4 scenarios)
+├── monitor_a2a.py               # A2A security monitoring script
+├── check_a2a.py                 # A2A call log inspector
 ├── orchestrator.tf              # Orchestrator runtime configuration
 ├── specialist.tf                # Specialist runtime configuration
 ├── factchecker.tf               # Fact Checker runtime configuration
@@ -587,6 +589,37 @@ For sensitive data:
 - Use AWS Secrets Manager
 - Pass secret ARNs as environment variables
 - Retrieve secrets at runtime in agent code
+
+### Security Monitoring
+
+Two scripts are included for monitoring A2A communication security:
+
+**`monitor_a2a.py`** — Automated security analysis with findings:
+```powershell
+python monitor_a2a.py                # Last 1 hour
+python monitor_a2a.py --hours 24     # Last 24 hours
+python monitor_a2a.py --json         # Machine-readable output
+```
+
+Checks performed:
+- Unauthorized agent targets (HIGH)
+- Prompt injection patterns in payloads (MEDIUM)
+- Abnormal payload sizes / data exfiltration (MEDIUM)
+- Latency anomalies (LOW/MEDIUM)
+- Error rate spikes (HIGH)
+- Unusual call frequency (MEDIUM)
+
+Outputs `monitor_checks_explained.json` with detailed descriptions of each check.
+
+**`check_a2a.py`** — Detailed A2A call log inspector:
+```powershell
+python check_a2a.py                  # Last 7 days
+python check_a2a.py --hours 1        # Last 1 hour
+python check_a2a.py --days 30        # Last 30 days
+python check_a2a.py --output report  # Custom output filename
+```
+
+Outputs `a2a_report.json` with full session details, queries, responses, and latencies.
 
 ## Pricing
 
