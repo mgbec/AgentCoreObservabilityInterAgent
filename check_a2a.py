@@ -14,7 +14,21 @@ import re
 from datetime import datetime, timedelta, timezone
 
 REGION = "us-east-1"
-LOG_GROUP = "/aws/bedrock-agentcore/runtimes/agentcore_multi_agent_OrchestratorAgent-kbGAc9F1OQ-DEFAULT"
+
+def find_orchestrator_log_group():
+    """Auto-discover the most recent Orchestrator log group."""
+    logs = boto3.client("logs", region_name=REGION)
+    response = logs.describe_log_groups(
+        logGroupNamePrefix="/aws/bedrock-agentcore/runtimes/agentcore_multi_agent_OrchestratorAgent"
+    )
+    groups = response.get("logGroups", [])
+    if not groups:
+        print("ERROR: No Orchestrator log group found.")
+        sys.exit(1)
+    # Return the most recently created one
+    return sorted(groups, key=lambda g: g.get("creationTime", 0), reverse=True)[0]["logGroupName"]
+
+LOG_GROUP = find_orchestrator_log_group()
 
 parser = argparse.ArgumentParser(description="Fetch A2A call logs")
 parser.add_argument("--hours", type=int, default=None, help="Hours to look back")
